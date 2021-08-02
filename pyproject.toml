@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "perfsizesagemaker"
+version = "0.1.0"
+description = "Automated performance testing to determine the right size of infrastructure, applied to AWS SageMaker"
+authors = ["Richard Shiao"]
+include = ["perfsizesagemaker/py.typed"]
+
+[tool.poetry.dependencies]
+python = "^3.8.11"
+boto3 = "^1.17.66"
+pyyaml = "^5.4.1"
+perfsize = "^0.1.7"
+yattag = "^1.14.0"
+jinja2 = "^3.0.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.0.1"
+pytest-cov = "^2.10.1"
+black = "^19.10b0"
+mypy = "^0.812"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
