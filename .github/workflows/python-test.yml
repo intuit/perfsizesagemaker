@@ -1,0 +1,40 @@
+name: Python Test
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install poetry
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          export PATH="$HOME/.poetry/bin:$PATH"
+          poetry --version
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make clean
+          make setup
+      - name: Check format
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          poetry run black --check .
+      - name: Check type
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make type
+      - name: Test
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make test

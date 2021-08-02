@@ -1,0 +1,50 @@
+name: Python Publish
+
+on:
+  release:
+    types: [published]
+
+env:
+  POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+
+jobs:
+  publish:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Install poetry
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          export PATH="$HOME/.poetry/bin:$PATH"
+          poetry --version
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make clean
+          make setup
+      - name: Check format
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          poetry run black --check .
+      - name: Check type
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make type
+      - name: Test
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make test
+      - name: Build
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make build
+      - name: Publish
+        run: |
+          export PATH="$HOME/.poetry/bin:$PATH"
+          make publish
