@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "perfsizesagemaker"
-version = "0.1.0"
+version = "0.1.1"
 description = "Automated performance testing to determine the right size of infrastructure, applied to AWS SageMaker"
 authors = ["Richard Shiao"]
 include = ["perfsizesagemaker/py.typed"]
