@@ -42,10 +42,11 @@ pip install perfsizesagemaker
 
 ## Usage
 
-See tests folder for examples.
+### Prerequisites
 
+- Python 3.8+
 
-## Demo
+### Demo
 
 You can run perfsizesagemaker on any SageMaker endpoint in your AWS account.
 
@@ -64,28 +65,7 @@ to build the `sagemaker-gatling-1.0-SNAPSHOT-fatjar.jar` and save a copy here as
 [sagemaker-gatling package](https://github.com/intuit/sagemaker-gatling/packages/913839)
 page.
 
-Create a role that will have permission to deploy, undeploy, and send traffic.
-- AWS Console > IAM Management Console > Roles > Create role
-- Choose a use case > `SageMaker`. Next.
-- Attached permissions policies shows `AmazonSageMakerFullAccess`. Next.
-- Role name: `perfsizesagemaker_role`
-
-Allow the Jenkins role to assume the role just created.
-- IAM > Roles > perfsizesagemaker_role > Trust relationships > Edit trust relationship
-- Add an entry for the Jenkins role (where test job is running) to assume the
-  perfsizesagemaker_role (where endpoint is running):
-```
-    {
-      "Sid": "",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::111111111111:role/your-jenkins-role-name-here"
-      },
-      "Action": "sts:AssumeRole"
-    },
-```
-
-Set environment variables for AWS credentials corresponding to your account:
+You can supply AWS credentials as environment variables to access your account:
 ```
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
@@ -116,6 +96,38 @@ python perfsizesagemaker/main.py \
 --endurance_retries 3 \
 --perfsize_results_dir perfsize-results-dir
 ```
+
+### Sample Jenkinsfile
+
+Another usage option is to use Jenkins to host a job for running perf tests.
+
+In your AWS Account, create a role with permission to deploy, undeploy, and send traffic.
+- AWS Console > IAM Management Console > Roles > Create role
+- Choose a use case > `SageMaker`. Next.
+- Attached permissions policies shows `AmazonSageMakerFullAccess`. Next.
+- Role name: `perfsizesagemaker_role`
+
+If other roles (like the role your Jenkins server is using) will need to assume the above role, you
+can allow that by:
+- IAM > Roles > perfsizesagemaker_role > Trust relationships > Edit trust relationship
+- Add an entry for the Jenkins role (where test job is running) to assume the
+  perfsizesagemaker_role (where endpoint is running):
+```
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::222222222222:role/your-jenkins-role-name-here"
+      },
+      "Action": "sts:AssumeRole"
+    },
+```
+
+See [JenkinsfilePerfTest](JenkinsfilePerfTest) as an example.
+
+### Tests
+
+See tests folder for more examples.
 
 
 ## Development

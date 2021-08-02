@@ -9,7 +9,7 @@
 // All results will be sent to the team email, in addition to the user specified email list.
 def notifyEmail = 'user@example.com'
 def dockerImage = 'amazonlinux:latest'
-def jenkinsRole = 'arn:aws:iam::111111111111:role/your-jenkins-role-name-here'
+def jenkinsRole = 'arn:aws:iam::222222222222:role/your-jenkins-role-name-here'
 
 def lockPerfTest = "${params.ENDPOINT_NAME}"
 def requestDistribution = 'not_defined_yet'
