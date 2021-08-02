@@ -69,12 +69,6 @@ def validate_scenario_requests(input: str) -> None:
 
 
 def main() -> None:
-    with open("logging.yml", "r") as stream:
-        log_config = yaml.safe_load(stream)
-    logging.config.dictConfig(log_config)
-    for name in logging.root.manager.loggerDict:  # type: ignore
-        if name.startswith("perfsize"):
-            logging.getLogger(name).setLevel(logging.DEBUG)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
