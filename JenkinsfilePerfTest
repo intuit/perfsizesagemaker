@@ -1,0 +1,400 @@
+// Sample Jenkinsfile for running perfsizesagemaker.
+
+// This job is for running tests on a SageMaker endpoint to determing what configurations
+// can meet given requirements. It will be deploying and undeploying the endpoint.
+
+// If you only want to send test traffic without deploying or undeploying the endpoint, then
+// see the sample Jenkinsfile in the sagemaker-gatling project.
+
+// All results will be sent to the team email, in addition to the user specified email list.
+def notifyEmail = 'user@example.com'
+def dockerImage = 'amazonlinux:latest'
+def jenkinsRole = 'arn:aws:iam::111111111111:role/your-jenkins-role-name-here'
+
+def lockPerfTest = "${params.ENDPOINT_NAME}"
+def requestDistribution = 'not_defined_yet'
+
+pipeline {
+    agent {
+        kubernetes {
+            label "perfsize-${UUID.randomUUID().toString()}"
+            defaultContainer "perfsize-container"
+            yaml """
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                    annotations:
+                        iam.amazonaws.com/role: ${jenkinsRole}
+                spec:
+                    containers:
+                    - name: perfsize-container
+                      resources:
+                        requests:
+                          cpu: 3000m
+                          memory: 15Gi
+                      image: ${dockerImage}
+                      command:
+                      - cat
+                      tty: true
+            """
+        }
+    }
+    options {
+        timestamps()
+        /*
+        daysToKeepStr: history is only kept up to this days.
+        numToKeepStr: only this number of build logs are kept.
+        artifactDaysToKeepStr: artifacts are only kept up to this days.
+        artifactNumToKeepStr: only this number of builds have their artifacts kept.
+        */
+        buildDiscarder(logRotator(daysToKeepStr:'30', numToKeepStr: '', artifactDaysToKeepStr: '', artifactNumToKeepStr: ''))
+    }
+    parameters {
+        // NOTE: If changing any parameter name, check if updates needed in build-error-email.txt
+        string(
+            name: 'IAM_ROLE_ARN',
+            description: 'IAM role to assume for accessing SageMaker endpoint',
+            defaultValue: 'arn:aws:iam::111111111111:role/perfsizesagemaker_role'
+        )
+        choice(
+            name: 'HOST',
+            description: 'Target host that will receive traffic',
+            choices: ['runtime.sagemaker.us-west-2.amazonaws.com']
+        )
+        choice(
+            name: 'REGION',
+            description: 'Target region should match host',
+            choices: ['us-west-2']
+        )
+        string(
+            name: 'ENDPOINT_NAME',
+            description: 'Endpoint name',
+            defaultValue: 'LEARNING-model-sim-public-1'
+        )
+        string(
+            name: 'ENDPOINT_CONFIG_NAME',
+            description: 'EndpointConfig name',
+            defaultValue: 'LEARNING-model-sim-public-1-0'
+        )
+        string(
+            name: 'MODEL_NAME',
+            description: 'Model name',
+            defaultValue: 'model-sim-public'
+        )
+        string(
+            name: 'EXPECTED_PEAK_TPS_IN_PROD',
+            description: 'TPS expected to solve for in Prod',
+            defaultValue: '100'
+        )
+        string(
+            name: 'LATENCY_SUCCESS_P99',
+            description: 'Milliseconds limit for p99 latency for successful responses',
+            defaultValue: '400'
+        )
+        string(
+            name: 'PERCENT_FAIL',
+            description: 'Percent limit for failed responses',
+            defaultValue: '0.01'
+        )
+        string(
+            name: 'TYPE_WALK',
+            description: 'Types to try',
+            defaultValue: 'ml.m5.large,ml.c5.xlarge,ml.m5.xlarge,ml.c5.2xlarge,ml.m5.2xlarge'
+        )
+        string(
+            name: 'COUNT_WALK',
+            description: 'Count values to try',
+            defaultValue: '1'
+        )
+        string(
+            name: 'TPS_WALK',
+            description: 'TPS values to try',
+            defaultValue: '1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,200,300,400'
+        )
+        string(
+            name: 'DURATION_MINUTES',
+            description: 'Minutes of testing per configuration',
+            defaultValue: '3'
+        )
+        string(
+            name: 'ENDURANCE_RAMP_START_TPS',
+            description: 'TPS level when starting endurance test',
+            defaultValue: '0'
+        )
+        string(
+            name: 'ENDURANCE_RAMP_MINUTES',
+            description: 'Minutes of ramp time for endurance test',
+            defaultValue: '0'
+        )
+        string(
+            name: 'ENDURANCE_STEADY_STATE_MINUTES',
+            description: 'Minutes of steady time for endurance test',
+            defaultValue: '30'
+        )
+        string(
+            name: 'ENDURANCE_RETRIES',
+            description: 'Number of times to retry endurance test (if failure)',
+            defaultValue: '3'
+        )
+        string(
+            name: 'EMAIL_LIST',
+            description: 'Comma separated list of email addresses',
+            defaultValue: 'user1@example.com,user2@example.com'
+        )
+        string(
+            name: 'EXTERNAL_PAYLOAD_GIT_REPO',
+            description: 'Git repo for request files',
+            defaultValue: 'https://github.com/intuit/some-other-example-repo'
+        )
+        string(
+            name: 'EXTERNAL_PAYLOAD_GIT_BRANCH',
+            description: 'Git branch for request files',
+            defaultValue: 'main'
+        )
+        string(
+            name: 'EXTERNAL_PAYLOAD_GIT_PATH',
+            description: 'Git file path (relative to repo root). File content is either the literal request body, or a request distribution like [{"path":"file-a.json","weight":80},{"path":"file-b.json","weight":20}]',
+            defaultValue: 'src/test/resources/bodies/model-sim/1/sample.input.json'
+        )
+        choice(
+            name: 'EXTERNAL_PAYLOAD_TYPE',
+            description: 'Type of payload file. SINGLE means file has literal request body. WEIGHTED means file has a list of file paths (relative to repo root) and weights (must sum to 100%) for request distribution.',
+            choices: ['SINGLE','WEIGHTED']
+        )
+    }
+    stages {
+        stage('Save build parameters for email template') {
+            steps {
+                script {
+                    def props = ""
+                    params.keySet().sort().each { key ->
+                        props = "${props}${key}=${params[key]}\n"
+                    }
+                    writeFile file: 'build-params.properties', text: "${props}"
+                }
+            }
+        }
+        stage("Check if perf test already in progress") {
+            // Not completely safe, but approximate workaround until
+            // https://issues.jenkins.io/browse/JENKINS-48603 becomes available.
+            steps {
+                script {
+                    try {
+                        timeout(time: 3, unit: 'SECONDS') {
+                            lock(lockPerfTest) {}
+                        }
+                    } catch (Exception e) {
+                        msg = "Is there already a perf test in progress for ${lockPerfTest}? Unable to get a lock due to ${e}"
+                        println("ERROR: ${msg}")
+                        error("${msg}")
+                    }
+                    echo "Did not find concurrent perf test for ${lockPerfTest}. Proceeding..."
+                }
+            }
+        }
+        stage("Perf Test") {
+            options {
+                lock(lockPerfTest)
+            }
+            stages {
+                stage('TODO: move this to Docker') {
+                    steps {
+                        container('perfsize-container') {
+                            dir("${env.WORKSPACE}") {
+                                script {
+                                    sh '''
+                                        # Install the required tools
+                                        yum update -y
+
+                                        yum install java-1.8.0 -y
+                                        yum install jq -y
+                                        yum install sudo -y
+                                        yum install unzip -y
+                                        yum install wget -y
+                                        yum install which -y
+
+                                        # Install python 3.8
+                                        # yum install python3 -y  # installs 3.7
+                                        sudo amazon-linux-extras install python3.8
+                                        sudo ln -s /usr/bin/python3.8 /usr/bin/python3
+                                        python3 --version
+
+                                        # Install AWS CLI
+                                        # https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html#cliv2-linux-install
+                                        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                                        unzip awscliv2.zip
+                                        sudo ./aws/install
+                                        aws --version
+
+                                        # Install pip
+                                        # https://pip.pypa.io/en/stable/installing/#installing-with-get-pip-py
+                                        curl -O https://bootstrap.pypa.io/get-pip.py
+                                        sudo python3 get-pip.py
+                                        pip --version
+
+                                        # Install poetry
+                                        # https://python-poetry.org/docs/#osx-linux-bashonwindows-install-instructions
+                                        curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 -
+                                        export PATH="${PATH}:$HOME/.poetry/bin"
+                                        echo $PATH
+                                        poetry --version
+                                    '''
+                                }
+                            }
+                        }
+                    }
+
+                }
+                stage('Checkout files from Git') {
+                    steps {
+                        dir("external") {
+                            // Need `checkout` task with all these options in order to support tags.
+                            // `git` task alone only supports branches, not tags.
+                            checkout scm: [
+                                    $class: 'GitSCM',
+                                    userRemoteConfigs: [[
+                                        url: "${params.EXTERNAL_PAYLOAD_GIT_REPO}.git",
+                                        credentialsId: 'your-id-here'
+                                    ]],
+                                    branches: [[name: "${params.EXTERNAL_PAYLOAD_GIT_BRANCH}"]]
+                                ],
+                                poll: false
+                            sh '''
+                                echo "Verify payload file exists:"
+                                pwd
+                                ls -lahF
+                                if [ -f "${EXTERNAL_PAYLOAD_GIT_PATH}" ]; then
+                                    echo "Found file ${EXTERNAL_PAYLOAD_GIT_PATH}"
+                                else
+                                    echo "ERROR: Could not find file ${EXTERNAL_PAYLOAD_GIT_PATH}"
+                                    find . | sort
+                                    exit 1
+                                fi
+                            '''
+                        }
+                    }
+                }
+                stage('List files in requestDistribution format') {
+                    steps {
+                        dir("external") {
+                            script {
+                                if (params.EXTERNAL_PAYLOAD_TYPE == 'SINGLE') {
+                                    requestDistribution = '[{"path":"' + params.EXTERNAL_PAYLOAD_GIT_PATH + '","weight":100}]'
+                                } else if (params.EXTERNAL_PAYLOAD_TYPE == 'WEIGHTED') {
+                                    requestDistribution = readFile(params.EXTERNAL_PAYLOAD_GIT_PATH)
+                                } else {
+                                    throw new Exception("Unrecognized payload type: ${params.EXTERNAL_PAYLOAD_TYPE}")
+                                }
+                            }
+                        }
+                    }
+                }
+                stage('Verify all files exist for requestDistribution') {
+                    environment {
+                        requestDistribution = "${requestDistribution}"
+                    }
+                    steps {
+                        dir("external") {
+                            sh '''
+                                echo "Verify all files in request distribution:"
+                                pwd
+                                ls -lahF
+                                paths=$(echo "${requestDistribution}" | jq -r '.[].path')
+                                if [ $? -ne 0 ]; then
+                                    echo "ERROR: Could not parse file paths from requestDistribution"
+                                    exit 1
+                                fi
+                                for path in ${paths}; do
+                                    if [ -f "${path}" ]; then
+                                        echo "Found file ${path}"
+                                    else
+                                        echo "ERROR: Could not find file ${path}"
+                                        find . | sort
+                                        exit 1
+                                    fi
+                                done
+                            '''
+                        }
+                    }
+                }
+                stage('Assemble and Execute Perfsize') {
+                    environment {
+                        requestDistribution = "${requestDistribution}"
+                    }
+                    steps {
+                        container('perfsize-container') {
+                            dir("${env.WORKSPACE}") {
+                                script {
+                                    sh '''
+                                        curl https://replace-with-hosted-location-of-jar-file/sagemaker-gatling-1.0-20210726.064819-1.jar -o sagemaker-gatling.jar
+
+                                        # Format distribution as compact
+                                        GIT_DISTRIBUTION=$(echo "${requestDistribution}" | jq -c '.')
+
+                                        # Need to prefix paths with folder where external payloads downloaded
+                                        PREFIXED_DISTRIBUTION=$(echo "${requestDistribution}" | jq -c 'map(.path |= "external/\\(.)")')
+
+                                        export PATH="${PATH}:$HOME/.poetry/bin"
+                                        echo $PATH
+                                        poetry install
+                                        poetry show --tree
+                                        poetry env info
+
+                                        poetry run python3 perfsizesagemaker/main.py \
+                                        --iam_role_arn ${IAM_ROLE_ARN} \
+                                        --host ${HOST} \
+                                        --region ${REGION} \
+                                        --endpoint_name ${ENDPOINT_NAME} \
+                                        --endpoint_config_name ${ENDPOINT_CONFIG_NAME} \
+                                        --model_name ${MODEL_NAME} \
+                                        --scenario_requests ${PREFIXED_DISTRIBUTION} \
+                                        --peak_tps ${EXPECTED_PEAK_TPS_IN_PROD} \
+                                        --latency_success_p99 ${LATENCY_SUCCESS_P99} \
+                                        --percent_fail ${PERCENT_FAIL} \
+                                        --type_walk ${TYPE_WALK} \
+                                        --count_walk ${COUNT_WALK} \
+                                        --tps_walk ${TPS_WALK} \
+                                        --duration_minutes ${DURATION_MINUTES} \
+                                        --endurance_ramp_start_tps ${ENDURANCE_RAMP_START_TPS} \
+                                        --endurance_ramp_minutes ${ENDURANCE_RAMP_MINUTES} \
+                                        --endurance_steady_state_minutes ${ENDURANCE_STEADY_STATE_MINUTES} \
+                                        --endurance_retries ${ENDURANCE_RETRIES} \
+                                        --perfsize_results_dir perfsize-results-dir
+                                    '''
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'perfsize-results-dir/**', fingerprint: true
+        }
+        success {
+            script {
+                // Only works on the assumption that only 1 subdirectory exists.
+                dirPath = sh(script: 'ls -d perfsize-results-dir/*/', returnStdout: true).trim()
+                echo dirPath
+                emailext body: '${FILE,path="' + dirPath + 'Final_Job_Report.html"}',
+                    mimeType: 'text/html',
+                    attachmentsPattern: dirPath + '*.png',
+                    subject: "${params.ENDPOINT_NAME} - perfsizesagemaker Endpoint Sizing Results | ${env.JOB_BASE_NAME} #${env.BUILD_NUMBER}",
+                    from: "sender@example.com",
+                    to: "${notifyEmail},${params.EMAIL_LIST}",
+                    replyTo: "${notifyEmail},${params.EMAIL_LIST}"
+            }
+        }
+        unsuccessful { // covers "aborted", "failed", "unstable"
+            script {
+                emailext body: '${FILE,path="build-error-email.txt"}',
+                    subject: "ERROR: perfsizesagemaker Endpoint Sizing Results | ${env.JOB_BASE_NAME} #${env.BUILD_NUMBER}",
+                    from: "sender@example.com",
+                    to: "${notifyEmail},${params.EMAIL_LIST}",
+                    replyTo: "${notifyEmail},${params.EMAIL_LIST}"
+            }
+        }
+    }
+}
