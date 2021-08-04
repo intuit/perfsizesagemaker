@@ -2,11 +2,11 @@ from decimal import Decimal
 import json
 
 
-class CostEstimator(object):
+class CostEstimator:
 
     # TODO: Add step to download latest prices from online...
     # TODO: Add region as a parameter...
-    # For now, using local file and testing with us-west-2 only:
+    # For now, using local file passed in
 
     def __init__(self, cost_file: str):
         self.rates = json.loads(open(cost_file, "r").read())

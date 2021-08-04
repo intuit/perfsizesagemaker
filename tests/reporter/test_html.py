@@ -65,7 +65,7 @@ class TestHTMLReporter:
         recommend_min: Dict[str, str] = {}
 
         # TODO: add region as a parameter... for now, testing with us-west-2
-        cost = CostEstimator("configs/cost/us-west-2.json")
+        cost = CostEstimator("resources/configs/cost/us-west-2.json")
 
         # Start with test plan to find working instance type.
         type_plan = Plan(

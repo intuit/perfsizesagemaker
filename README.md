@@ -208,7 +208,11 @@ git tag "v${NEW_VERSION}"
 git push && git push --tags
 ```
 
-Once pushed, Jenkins will automatically publish the artifact to Artifactory.
+Once tag is published as a release, GitHub Action
+[python-publish.yml](.github/workflows/python-publish.yml)
+will publish the artifacts to
+[perfsizesagemaker](https://pypi.org/project/perfsizesagemaker/)
+on PyPI.
 
 
 ## Contributing

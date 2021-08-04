@@ -66,7 +66,7 @@ class TestCostEstimator:
         month: str,
         year: str,
     ) -> None:
-        cost = CostEstimator("configs/cost/us-west-2.json")
+        cost = CostEstimator("resources/configs/cost/us-west-2.json")
         explanation = cost.explain(instance_type, instance_count)
         print(explanation)
         assert hour in explanation
@@ -75,7 +75,7 @@ class TestCostEstimator:
         assert year in explanation
 
     def test_explain_lookup_fail(self) -> None:
-        cost = CostEstimator("configs/cost/us-west-2.json")
+        cost = CostEstimator("resources/configs/cost/us-west-2.json")
         explanation = cost.explain("ml.m5.invalid", 1)
         print(explanation)
         assert explanation == "ERROR: Cost lookup did not find type ml.m5.invalid"

@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import pathlib
 from perfsize.perfsize import (
     lt,
     lte,
@@ -33,6 +34,7 @@ from perfsizesagemaker.reporter.html import HTMLReporter
 from perfsizesagemaker.step.sagemaker import FirstSuccessStepManager
 from perfsizesagemaker.constants import Parameter, SageMaker
 from pprint import pformat, pprint
+import sys
 from typing import Dict, List
 import yaml
 
@@ -45,7 +47,7 @@ def get_timestamp_utc() -> str:
 
 
 def validate_scenario_requests(input: str) -> None:
-    """Confirm request payload file(s) are valid or raise errors."""
+    """Confirm request payload files are valid and weights sum to 100."""
     # TODO: See how to handle different file encoding types.
     items = json.loads(input)
     if not items:
@@ -53,14 +55,9 @@ def validate_scenario_requests(input: str) -> None:
     sum = 0
     for item in items:
         path = item["path"]
+        if not pathlib.Path(path).exists():
+            raise RuntimeError(f"ERROR: file {path} does not exist")
         weight = item["weight"]
-        # log.debug(f"About to read file: {path}")
-        # try:
-        #     jsonStuffStr = open(path, "r", encoding="utf-8").read()
-        #     json.loads(jsonStuffStr)
-        # except Exception as e:
-        #     print(f"ERROR: Unable to read file as valid JSON: {path}", repr(e))
-        #     raise e
         if weight < 0:
             raise RuntimeError(f"ERROR: file {path} had negative weight: {weight}")
         sum = sum + weight
@@ -140,6 +137,21 @@ def main() -> None:
         help="directory for saving test results",
         default="perfsize-results-dir",
     )
+    parser.add_argument(
+        "--cost_file",
+        help="path to file mapping instance type to hourly rate",
+        default="resources/configs/cost/us-west-2.json",
+    )
+    parser.add_argument(
+        "--jar_file",
+        help="path to sagmaker-gatling.jar file",
+        default="sagemaker-gatling.jar",
+    )
+    parser.add_argument(
+        "--logging_config",
+        help="path to logging.yml file",
+        default="resources/configs/logging/logging.yml",
+    )
     args = parser.parse_args()
 
     # Tried setting type checking directly in add_argument but the error message
@@ -153,10 +165,12 @@ def main() -> None:
     model_name = args.model_name
     scenario_requests = args.scenario_requests
     try:
-        json.loads(args.scenario_requests)
-        validate_scenario_requests(args.scenario_requests)
+        json.loads(scenario_requests)
+        validate_scenario_requests(scenario_requests)
     except:
-        parser.error(f"argument --scenario_requests: see validation errors")
+        error = sys.exc_info()[0]
+        description = sys.exc_info()[1]
+        parser.error(f"argument --scenario_requests: got error {error}: {description}")
     try:
         peak_tps = Decimal(args.peak_tps)
     except:
@@ -228,6 +242,25 @@ def main() -> None:
     job_id_dir = perfsize_results_dir + os.sep + job_id
     if not os.path.isdir(job_id_dir):
         os.mkdir(job_id_dir)
+    try:
+        cost_file = args.cost_file
+        cost = CostEstimator(cost_file)
+    except:
+        parser.error(f"argument --cost_file: error loading {args.cost_file}")
+    jar_file = args.jar_file
+    if not pathlib.Path(jar_file).exists():
+        parser.error(f"argument --jar_file not found: {jar_file}")
+    logging_config = args.logging_config
+    if not pathlib.Path(logging_config).exists():
+        parser.error(f"argument --logging_config not found: {logging_config}")
+
+    # Initialize logger if config file exists
+    with open(logging_config, "r") as stream:
+        config = yaml.safe_load(stream)
+    logging.config.dictConfig(config)
+    for name in logging.root.manager.loggerDict:  # type: ignore
+        if name.startswith("perfsize"):
+            logging.getLogger(name).setLevel(logging.DEBUG)
 
     inputs: Dict[str, str] = {}
     inputs["iam_role_arn"] = f"{iam_role_arn}"
@@ -250,6 +283,9 @@ def main() -> None:
     inputs["endurance_retries"] = f"{endurance_retries}"
     inputs["perfsize_results_dir"] = f"{perfsize_results_dir}"
     inputs["job_id_dir"] = f"{job_id_dir}"
+    inputs["cost_file"] = f"{cost_file}"
+    inputs["jar_file"] = f"{jar_file}"
+    inputs["logging_config"] = f"{logging_config}"
     log.debug(f"inputs: {pformat(inputs)}")
 
     # TODO: Make arg parsing more generic. For now, only handling latency_success_p99 and percent_fail.
@@ -271,9 +307,6 @@ def main() -> None:
     recommend_type: Dict[str, str] = {}
     recommend_max: Dict[str, str] = {}
     recommend_min: Dict[str, str] = {}
-
-    # TODO: add region as a parameter... for now, testing with us-west-2
-    cost = CostEstimator("configs/cost/us-west-2.json")
 
     # Phase 1: Find working instance type.
     # The goal is to find the first instance type that works and how much
@@ -305,7 +338,7 @@ def main() -> None:
         environment_manager=SageMakerEnvironmentManager(iam_role_arn, region),
         load_manager=SageMakerLoadManager(
             scenario_requests=scenario_requests,
-            gatling_jar_path="./sagemaker-gatling.jar",
+            gatling_jar_path=jar_file,
             gatling_scenario="GenericSageMakerScenario",
             gatling_results_path=job_id_dir,
             iam_role_arn=iam_role_arn,
@@ -377,7 +410,7 @@ def main() -> None:
         environment_manager=SageMakerEnvironmentManager(iam_role_arn, region),
         load_manager=SageMakerLoadManager(
             scenario_requests=scenario_requests,
-            gatling_jar_path="./sagemaker-gatling.jar",
+            gatling_jar_path=jar_file,
             gatling_scenario="GenericSageMakerScenario",
             gatling_results_path=job_id_dir,
             iam_role_arn=iam_role_arn,
