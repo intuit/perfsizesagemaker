@@ -72,11 +72,15 @@ AWS_SECRET_ACCESS_KEY
 AWS_SESSION_TOKEN
 ```
 
-Run `perfsizesagemaker/main.py` with these options:
+See [resources](resources) directory and ensure the following files are available:
+- a cost config file like [resources/configs/cost/us-west-2.json](resources/configs/cost/us-west-2.json)
+- a logging config file like [resources/configs/logging/logging.yml](resources/configs/logging/logging.yml)
+
+Run the main module with these options:
 ```
 poetry shell
 
-python perfsizesagemaker/main.py \
+python perfsizesagemaker.main \
 --host runtime.sagemaker.us-west-2.amazonaws.com \
 --region us-west-2 \
 --endpoint_name LEARNING-model-simulator-1 \
