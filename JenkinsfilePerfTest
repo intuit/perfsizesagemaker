@@ -340,7 +340,7 @@ pipeline {
                                         poetry show --tree
                                         poetry env info
 
-                                        poetry run python3 perfsizesagemaker/main.py \
+                                        poetry run python3 -m perfsizesagemaker.main \
                                         --iam_role_arn ${IAM_ROLE_ARN} \
                                         --host ${HOST} \
                                         --region ${REGION} \

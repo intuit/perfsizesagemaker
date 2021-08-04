@@ -80,7 +80,7 @@ Run the main module with these options:
 ```
 poetry shell
 
-python perfsizesagemaker.main \
+python -m perfsizesagemaker.main \
 --host runtime.sagemaker.us-west-2.amazonaws.com \
 --region us-west-2 \
 --endpoint_name LEARNING-model-simulator-1 \
