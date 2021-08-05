@@ -4,10 +4,15 @@
 
 [![Python Publish](https://github.com/intuit/perfsizesagemaker/actions/workflows/python-publish.yml/badge.svg)](https://github.com/intuit/perfsizesagemaker/actions/workflows/python-publish.yml)
 
-`perfsizesagemaker` is a tool that automates performance testing to determine the right size of
-infrastructure for AWS SageMaker endpoints. Given requirements for latency and error rate, the tool
-tries various instance type and count configurations to see which ones can meet the requirements,
-and then provides a recommendation and detailed report.
+`perfsizesagemaker` is a tool that uses automated performance testing to determine the right size of
+infrastructure for hosting models on AWS SageMaker.
+
+To host models on AWS SageMaker endpoints, model owners need to determine appropriate configuration
+settings that are powerful enough to meet requirements but also cost effective. Requirements to
+consider include expected peak traffic level (requests per second), allowed response time
+(milliseconds), and allowed error rate (failure percentage). With these requirements, the
+`perfsizesagemaker` tool can deploy various configurations, send test traffic, analyze results, and
+recommend configurations with cost estimates.
 
 - To determine what configuration to test next, a
 [step manager](perfsizesagemaker/step/sagemaker.py)
