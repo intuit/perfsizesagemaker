@@ -556,8 +556,12 @@ class TestHTMLReporter:
         recommend_type[Parameter.initial_instance_count] = f"{initial_instance_count}"
         recommend_type[Parameter.steady_state_tps] = f"{steady_state_tps}"
         recommend_type["tps_per_instance"] = f"{tps_per_instance}"
-
         instance_count_needed = math.ceil(peak_tps / tps_per_instance)
+        recommend_type["estimate"] = (
+            f"Last green run was {steady_state_tps} TPS supported by {initial_instance_count} instances of {instance_type}.\n"
+            f"{steady_state_tps} / {initial_instance_count} = {tps_per_instance} TPS per instance.\n"
+            f"To support {peak_tps} TPS, we need ceiling({peak_tps} / {tps_per_instance}) = {instance_count_needed} instances."
+        )
 
         max_count_plan = Plan(
             parameter_lists={
@@ -793,16 +797,28 @@ class TestHTMLReporter:
             )
         ] = config
 
+        endurance_steady_state_minutes = 30
         max_instance_count = 2
-        recommend_max["max_instance_count"] = f"{max_instance_count}"
-        recommend_max["max_steady_state_tps"] = "10"
-        recommend_max["max_tps_per_instance"] = "5"
-        recommend_max["max_cost"] = cost.explain(instance_type, max_instance_count)
-
-        # Next is test plan to find min instance count needed for autoscaling.
+        max_steady_state_tps = Decimal(10)
+        max_tps_per_instance = max_steady_state_tps / max_instance_count
         invocations_target = int(
             peak_tps / max_instance_count * 60 * SageMaker.SAFETY_FACTOR
         )
+        recommend_max["max_instance_count"] = f"{max_instance_count}"
+        recommend_max["max_steady_state_tps"] = f"{max_steady_state_tps}"
+        recommend_max["max_tps_per_instance"] = f"{max_tps_per_instance}"
+        recommend_max["max_cost"] = cost.explain(instance_type, max_instance_count)
+        recommend_max["invocations_target"] = f"{invocations_target}"
+        recommend_max["explanation"] = (
+            f"Last green run was {max_steady_state_tps} TPS supported by {max_instance_count} instances of {instance_type}.\n"
+            f"max_tps_per_instance = {max_steady_state_tps} / {max_instance_count} = {max_tps_per_instance} TPS per instance.\n"
+            f"Autoscaling metric (SageMakerVariantInvocationsPerInstance):\n"
+            f"= int(max_tps_per_instance * 60 seconds/minute * safety_factor)\n"
+            f"= int({max_tps_per_instance} * 60 * {SageMaker.SAFETY_FACTOR})\n"
+            f"= {invocations_target} invocations / instance / minute"
+        )
+
+        # Next is test plan to find min instance count needed for autoscaling.
 
         # TODO: Implement testing process to determine min count for autoscaling...
         # min_count_plan = None
@@ -811,7 +827,6 @@ class TestHTMLReporter:
 
         recommend_min["min_instance_count"] = "-"  # TODO: implement
         recommend_min["min_cost"] = "-"  # TODO: implement
-        recommend_min["invocations_target"] = f"{invocations_target}"
 
         reporter = HTMLReporter(
             inputs=inputs,

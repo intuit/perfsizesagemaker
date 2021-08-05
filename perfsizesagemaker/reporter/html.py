@@ -42,20 +42,17 @@ class HTMLReporter:
         self.recommend_max = recommend_max
         self.recommend_min = recommend_min
 
-        if self.recommend_max:
-            explanation = self.recommend_max["max_cost"]
-            self.recommend_max["max_cost"] = self.strings_to_html(
-                explanation.split("\n")
-            )
-
-        if self.inputs and self.recommend_max and self.recommend_min:
-            peak_tps = int(self.inputs["peak_tps"])
-            max_instance_count = int(self.recommend_max["max_instance_count"])
-            self.recommend_min[
-                "invocations_target_explanation"
-            ] = self.explain_invocations(
-                peak_tps, max_instance_count, SageMaker.SAFETY_FACTOR
-            )
+        # Replace any new line formatting with HTML
+        tables = [
+            table
+            for table in [recommend_type, recommend_max, recommend_min]
+            if table is not None
+        ]
+        for table in tables:
+            for key in table:
+                value = table[key]
+                if "\n" in value:
+                    table[key] = self.strings_to_html(value.split("\n"))
 
         # Color Scheme
         self.color = {}
@@ -65,18 +62,6 @@ class HTMLReporter:
 
     def format_unix_time(self, seconds: int) -> str:
         return datetime.utcfromtimestamp(seconds).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    def explain_invocations(
-        self, peak_tps: int, max_instance_count: int, factor: Decimal
-    ) -> str:
-        return self.strings_to_html(
-            (
-                f"invocations_target\n"
-                f"= int(peak_tps / max_instance_count * 60 * safety_factor)\n"
-                f"= int({peak_tps} / {max_instance_count} * 60 * {SageMaker.SAFETY_FACTOR})\n"
-                f"= {int(Decimal(peak_tps) / Decimal(max_instance_count) * 60 * SageMaker.SAFETY_FACTOR)}"
-            ).split("\n")
-        )
 
     def strings_to_html(self, strings: List[str]) -> str:
         doc, tag, text = Doc().tagtext()
@@ -275,7 +260,7 @@ class HTMLReporter:
             summary["min_cost"] = self.recommend_min["min_cost"]
             summary["max_instance_count"] = self.recommend_max["max_instance_count"]
             summary["max_cost"] = self.recommend_max["max_cost"]
-            summary["invocations_target"] = self.recommend_min["invocations_target"]
+            summary["invocations_target"] = self.recommend_max["invocations_target"]
             doc.asis(self.render_dict(summary))
             with tag("p"):
                 text("For a Fixed Scale configuration, use the max_instance_count.")

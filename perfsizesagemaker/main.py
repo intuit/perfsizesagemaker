@@ -364,10 +364,16 @@ def main() -> None:
     )
     steady_state_tps = Decimal(type_recommendation[Parameter.steady_state_tps])
     tps_per_instance = steady_state_tps / initial_instance_count
+    instance_count_needed = math.ceil(peak_tps / tps_per_instance)
     recommend_type[Parameter.instance_type] = instance_type
     recommend_type[Parameter.initial_instance_count] = f"{initial_instance_count}"
     recommend_type[Parameter.steady_state_tps] = f"{steady_state_tps}"
     recommend_type["tps_per_instance"] = f"{tps_per_instance}"
+    recommend_type["estimate"] = (
+        f"Last green run was {steady_state_tps} TPS supported by {initial_instance_count} instances of {instance_type}.\n"
+        f"{steady_state_tps} / {initial_instance_count} = {tps_per_instance} TPS per instance.\n"
+        f"To support {peak_tps} TPS, we need ceiling({peak_tps} / {tps_per_instance}) = {instance_count_needed} instances."
+    )
     log.info(f"recommend_type: {pformat(recommend_type)}")
 
     # Phase 2: Find instance count needed for max TPS.
@@ -376,7 +382,6 @@ def main() -> None:
     # peak load. This number is calculated as instance_count_needed,
     # assuming linear extrapolation. But just in case it fails,
     # the test plan includes some endurance_retries.
-    instance_count_needed = math.ceil(peak_tps / tps_per_instance)
 
     max_count_plan = Plan(
         parameter_lists={
@@ -433,19 +438,28 @@ def main() -> None:
     max_instance_count = int(max_count_recommendation[Parameter.initial_instance_count])
     max_steady_state_tps = Decimal(max_count_recommendation[Parameter.steady_state_tps])
     max_tps_per_instance = max_steady_state_tps / max_instance_count
+    invocations_target = int(
+        peak_tps / max_instance_count * 60 * SageMaker.SAFETY_FACTOR
+    )
     recommend_max["max_instance_count"] = f"{max_instance_count}"
     recommend_max["max_steady_state_tps"] = f"{max_steady_state_tps}"
     recommend_max["max_tps_per_instance"] = f"{max_tps_per_instance}"
     recommend_max["max_cost"] = cost.explain(instance_type, max_instance_count)
+    recommend_max["invocations_target"] = f"{invocations_target}"
+    recommend_max["explanation"] = (
+        f"Last green run was {max_steady_state_tps} TPS supported by {max_instance_count} instances of {instance_type}.\n"
+        f"max_tps_per_instance = {max_steady_state_tps} / {max_instance_count} = {max_tps_per_instance} TPS per instance.\n"
+        f"Autoscaling metric (SageMakerVariantInvocationsPerInstance):\n"
+        f"= int(max_tps_per_instance * 60 seconds/minute * safety_factor)\n"
+        f"= int({max_tps_per_instance} * 60 * {SageMaker.SAFETY_FACTOR})\n"
+        f"= {invocations_target} invocations / instance / minute"
+    )
     log.info(f"recommend_max: {pformat(recommend_max)}")
 
     # Phase 3: Find min instance count that can still support given ramp time.
     # Third set limits instance type and max count to values found above.
     # The goal is to find the number of instances needed to support given
     # ramp from starting TPS to peak TPS over ramp minutes.
-    invocations_target = int(
-        peak_tps / max_instance_count * 60 * SageMaker.SAFETY_FACTOR
-    )
 
     # TODO: Implement Part 3...
     min_count_plan = None
@@ -455,7 +469,6 @@ def main() -> None:
 
     recommend_min["min_instance_count"] = "-"  # TODO: implement
     recommend_min["min_cost"] = "-"  # TODO: implement
-    recommend_min["invocations_target"] = f"{invocations_target}"
     log.info(f"recommend_min: {pformat(recommend_min)}")
 
     # Generate final report...
