@@ -10,30 +10,40 @@ infrastructure for hosting models on AWS SageMaker.
 To host models on AWS SageMaker endpoints, model owners need to determine appropriate configuration
 settings that are powerful enough to meet requirements but also cost effective. Requirements to
 consider include expected peak traffic level (requests per second), allowed response time
-(milliseconds), and allowed error rate (failure percentage). With these requirements, the
-`perfsizesagemaker` tool can deploy various configurations, send test traffic, analyze results, and
-recommend configurations with cost estimates.
+(milliseconds), and allowed error rate (failure percentage). The user can provide these
+requirements and customize options for the testing strategy.
+
+With these inputs, the `perfsizesagemaker` tool follows a sequence of steps to deploy various
+runtime configurations, send test traffic, analyze results, and recommend configurations with cost
+estimates.
 
 - To determine what configuration to test next, a
-[step manager](perfsizesagemaker/step/sagemaker.py)
-follows prescribed logic based on results collected so far.
+  [step manager](perfsizesagemaker/step/sagemaker.py)
+  follows prescribed logic based on results collected so far. The default logic involves trying
+  to find the lowest instance type that can work, finding how much traffic one instance can handle,
+  and then verifying how many instances would be needed to support overall peak traffic.
 
 - To update the environment, an
-[environment manager](perfsizesagemaker/environment/sagemaker.py)
-uses
-[AWS SDK for Python (Boto3)](https://aws.amazon.com/sdk-for-python/)
-to interact with the designated AWS account for each configuration.
+  [environment manager](perfsizesagemaker/environment/sagemaker.py)
+  uses
+  [AWS SDK for Python (Boto3)](https://aws.amazon.com/sdk-for-python/)
+  to interact with the designated AWS account and set up each configuration.
 
 - To send traffic, a
-[load manager](perfsizesagemaker/load/sagemaker.py)
-uses
-[sagemaker-gatling](https://github.com/intuit/sagemaker-gatling)
-to call the SageMaker endpoint with the desired traffic level per configuration.
+  [load manager](perfsizesagemaker/load/sagemaker.py)
+  uses
+  [sagemaker-gatling](https://github.com/intuit/sagemaker-gatling)
+  to call the SageMaker endpoint with the desired traffic level per configuration.
 
-- `perfsizesagemaker` can also serve as a reference implementation for how to use the
+- To gather results, a
+  [result manager](https://github.com/intuit/perfsize/blob/main/perfsize/result/gatling.py)
+  parses simulation.log files from Gatling to get metrics. In the future, other result managers
+  could be added to gather results from other systems like Splunk, Wavefront, CloudWatch, etc.
+
+`perfsizesagemaker` can also serve as a reference implementation for how to use the
 [perfsize](https://github.com/intuit/perfsize)
 library, which has some interfaces and components that can be reused in other implementations for
-testing other types of infrastructure.
+sizing other types of infrastructure.
 
 ## Installation
 
