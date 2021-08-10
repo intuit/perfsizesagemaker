@@ -69,12 +69,12 @@ pipeline {
         string(
             name: 'ENDPOINT_NAME',
             description: 'Endpoint name',
-            defaultValue: 'LEARNING-model-sim-public-1'
+            defaultValue: 'LEARNING-model-simulator-1'
         )
         string(
             name: 'ENDPOINT_CONFIG_NAME',
             description: 'EndpointConfig name',
-            defaultValue: 'LEARNING-model-sim-public-1-0'
+            defaultValue: 'LEARNING-model-simulator-1-0'
         )
         string(
             name: 'MODEL_NAME',
@@ -208,15 +208,29 @@ pipeline {
 
                                         yum install java-1.8.0 -y
                                         yum install jq -y
+                                        yum install make -y
                                         yum install sudo -y
+                                        yum install tar -y
                                         yum install unzip -y
                                         yum install wget -y
                                         yum install which -y
 
-                                        # Install python 3.8
+                                        # Install python 3.9
                                         # yum install python3 -y  # installs 3.7
-                                        sudo amazon-linux-extras install python3.8
-                                        sudo ln -s /usr/bin/python3.8 /usr/bin/python3
+                                        # sudo amazon-linux-extras install python3.8  # installs 3.8.5
+                                        # sudo ln -s /usr/bin/python3.8 /usr/bin/python3
+                                        sudo yum install gcc openssl-devel bzip2-devel libffi-devel -y
+                                        old=$(pwd)
+                                        cd /opt
+                                        sudo wget https://www.python.org/ftp/python/3.9.6/Python-3.9.6.tgz
+                                        sudo tar xzf Python-3.9.6.tgz
+                                        cd Python-3.9.6
+                                        sudo ./configure --enable-optimizations
+                                        sudo make altinstall
+                                        cd $old
+                                        which python3.9
+                                        sudo ln -s /usr/local/bin/python3.9 /usr/bin/python3
+                                        python3.9 --version
                                         python3 --version
 
                                         # Install AWS CLI
