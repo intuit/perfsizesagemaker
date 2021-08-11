@@ -464,11 +464,17 @@ class HTMLReporter:
 
         with tag("p"):
             text("You can also test the minimum instance count by following: ")
-            with tag("a", href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-testing.md"):
+            with tag(
+                "a",
+                href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-testing.md",
+            ):
                 text("How to test for auto scaling settings")
         with tag("p"):
             text("For more context on the autoscale metric, see ")
-            with tag("a", href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-metric.md"):
+            with tag(
+                "a",
+                href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-metric.md",
+            ):
                 text("SageMakerVariantInvocationsPerInstance")
         with tag("p"):
             text("For any questions, please start a new thread on the ")
