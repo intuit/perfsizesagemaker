@@ -176,7 +176,7 @@ tested. This way, each test step should have a unique name, and you can tell the
 configuration.
 
 For example, the
-[1628680814-ml.m5.large-1-100TPS-20210811112016736](resources/samples/model-simulator/job-2021-08-11-100314-model-simulator/1628680814-ml.m5.large-1-100TPS-20210811112016736/index.html)
+[1628680814-ml.m5.large-1-100TPS-20210811112016736](resources/samples/model-simulator/job-2021-08-11-100314-model-simulator/1628680814-ml.m5.large-1-100TPS-20210811112016736/)
 was the test run at Unix time `1628680814` with `ml.m5.large` instance type, `1` instance count, at
 `100 TPS`.
 
