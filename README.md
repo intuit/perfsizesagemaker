@@ -144,9 +144,67 @@ can allow that by:
 
 See [JenkinsfilePerfTest](JenkinsfilePerfTest) as an example.
 
+### Sample Results
+
+#### Summary Report
+
+Here is a sample
+[Final_Job_Report.html](resources/samples/model-simulator/job-2021-08-11-100314-model-simulator/Final_Job_Report.html).
+It summarizes test results and recommends a working configuration if one was found.
+
+![Final Job Report](resources/docs/images/report-summary.png)
+
+In this case, the first instance type attempted worked, and it supported up to 200 TPS on a single
+instance. Since the required peak was given as only 100 TPS, a single instance was more than enough.
+
+In other cases, if the first instance type attempted failed, then the testing process would try
+the next types available. Or, if a single instance only supported, say, 20 TPS, and required peak
+was 100 TPS, then the process would extrapolate 100/20 = 5 instances, and run an endurance test to
+confirm.
+
+#### Step Details
+
+If there is some unexpected result, you can get more debugging details.
+
+See the artifacts in the output folder (in this case, as run from a Jenkins job):
+
+![Build Artifacts](resources/docs/images/artifacts.png)
+
+This folder contains the summary report above along with more detailed reports for each step. The
+folders are named by combining the current timestamp and various configuration settings being
+tested. This way, each test step should have a unique name, and you can tell the run order and
+configuration.
+
+For example, the
+[1628680814-ml.m5.large-1-100TPS-20210811112016736](resources/samples/model-simulator/job-2021-08-11-100314-model-simulator/1628680814-ml.m5.large-1-100TPS-20210811112016736/index.html)
+was the test run at Unix time `1628680814` with `ml.m5.large` instance type, `1` instance count, at
+`100 TPS`.
+
+The folder contains an
+[index.html](resources/samples/model-simulator/job-2021-08-11-100314-model-simulator/1628680814-ml.m5.large-1-100TPS-20210811112016736/index.html)
+which shows the Gatling report for that step:
+
+![Step Details](resources/docs/images/report-step-details.png)
+
+Checking the detailed report gives you the breakdown of error codes. In this case, there were 5
+errors overall, and they were all status 400.
+
+The report also gives you graphs showing metrics over time. You can check active users, response
+time, request rate, and response rate.
+
+With these details, you can investigate more as needed, especially if you find failures at traffic
+levels lower than what you were expecting.
+
+### Auto Scaling
+
+- For more context on the auto scale metric, see
+  [SageMakerVariantInvocationsPerInstance](resources/docs/auto-scale-metric.md).
+- You can also test for the minimum instance count by following
+  [How to test for auto scaling settings](resources/docs/auto-scale-testing.md).
+
 ### Tests
 
-See tests folder for more examples.
+See [tests](tests) folder for more examples.
 
 
 ## Development
