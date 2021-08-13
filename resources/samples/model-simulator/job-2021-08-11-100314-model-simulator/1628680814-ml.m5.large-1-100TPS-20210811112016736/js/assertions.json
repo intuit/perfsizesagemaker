@@ -1,0 +1,10 @@
+{
+  "simulation": "GenericSageMakerScenario",
+  "simulationId": "1628680814-ml.m5.large-1-100TPS",
+  "start": 1628680816736,
+  "description": "",
+  "scenarios": ["SageMaker"],
+  "assertions": [
+
+  ]
+}
