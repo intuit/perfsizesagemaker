@@ -82,7 +82,7 @@ class SageMakerLoadManager(LoadManager):
 
 
 if __name__ == "__main__":
-    with open("logging.yml", "r") as stream:
+    with open("resources/configs/logging/logging.yml", "r") as stream:
         log_config = yaml.safe_load(stream)
     logging.config.dictConfig(log_config)
     for name in logging.root.manager.loggerDict:  # type: ignore
@@ -99,18 +99,25 @@ if __name__ == "__main__":
         parameters={
             Parameter.host: "runtime.sagemaker.us-west-2.amazonaws.com",
             Parameter.region: "us-west-2",
-            Parameter.endpoint_name: "LEARNING-model-sim-public-1",
-            Parameter.endpoint_config_name: "LEARNING-model-sim-public-1-0",
-            Parameter.model_name: "model-sim-public",
+            Parameter.endpoint_name: "LEARNING-model-simulator-1",
+            Parameter.endpoint_config_name: "LEARNING-model-simulator-1-0",
+            Parameter.variant_name: "variant-name-1",
+            Parameter.model_name: "model-simulator",
             Parameter.instance_type: "ml.t2.medium",
             Parameter.initial_instance_count: "1",
+            Parameter.scaling_enabled: "False",
+            Parameter.scaling_min_instance_count: "0",
+            Parameter.scaling_max_instance_count: "0",
+            Parameter.scaling_metric: "SageMakerVariantInvocationsPerInstance",
+            Parameter.scaling_target: "0",
             Parameter.ramp_start_tps: "0",
             Parameter.ramp_minutes: "0",
-            Parameter.steady_state_tps: "1",
-            Parameter.steady_state_minutes: "1",
+            Parameter.steady_state_tps: "10",
+            Parameter.steady_state_minutes: "3",
         },
         requirements={},
     )
+
     environment_manager = SageMakerEnvironmentManager()
     environment_manager.setup(config)
 
@@ -125,11 +132,11 @@ if __name__ == "__main__":
         """,
         gatling_jar_path="./sagemaker-gatling.jar",
         gatling_scenario="GenericSageMakerScenario",
-        gatling_results_path="./perfsize-results-root",
+        gatling_results_path="./perfsize-results-dir",
     )
     run = load_manager.send(config)
 
-    # environment_manager.teardown(config)
+    environment_manager.teardown(config)
 
     # result_manager = ResultManager()
     # result_manager.query(config, run)
