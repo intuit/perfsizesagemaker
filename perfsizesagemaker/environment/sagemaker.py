@@ -68,9 +68,7 @@ class EndpointConfig:
 
 class ScalableTarget:
     def __init__(
-        self,
-        scaling_min_instance_count: int,
-        scaling_max_instance_count: int,
+        self, scaling_min_instance_count: int, scaling_max_instance_count: int,
     ):
         self.scaling_min_instance_count = scaling_min_instance_count
         self.scaling_max_instance_count = scaling_max_instance_count
@@ -78,9 +76,7 @@ class ScalableTarget:
 
 class ScalingPolicy:
     def __init__(
-        self,
-        scaling_metric: str,
-        scaling_target: int,
+        self, scaling_metric: str, scaling_target: int,
     ):
         self.scaling_metric = scaling_metric
         self.scaling_target = scaling_target
@@ -158,6 +154,7 @@ class CombinedStatus:
             and self.scaling_metric == other.scaling_metric
             and self.scaling_target == other.scaling_target
         )
+
 
 # Sample response for describe_endpoint
 #
@@ -337,6 +334,7 @@ class CombinedStatus:
 #   }
 # }
 
+
 class SageMakerEnvironmentManager(EnvironmentManager):
     def __init__(
         self, iam_role_arn: Optional[str] = None, region: Optional[str] = None,
@@ -430,7 +428,9 @@ class SageMakerEnvironmentManager(EnvironmentManager):
 
     def get_scalable_target(self, resource_id: str) -> Optional[ScalableTarget]:
         autoscaling = self._autoscaling_client()
-        response = autoscaling.describe_scalable_targets(ServiceNamespace="sagemaker", ResourceIds=[resource_id])
+        response = autoscaling.describe_scalable_targets(
+            ServiceNamespace="sagemaker", ResourceIds=[resource_id]
+        )
         log.debug(f"ScalableTargets for {resource_id} description: {response}")
         if response["ScalableTargets"]:
             assert len(response["ScalableTargets"]) == 1
@@ -444,15 +444,21 @@ class SageMakerEnvironmentManager(EnvironmentManager):
 
     def get_scaling_policy(self, resource_id: str) -> Optional[ScalingPolicy]:
         autoscaling = self._autoscaling_client()
-        response = autoscaling.describe_scaling_policies(ServiceNamespace="sagemaker", ResourceId=resource_id)
+        response = autoscaling.describe_scaling_policies(
+            ServiceNamespace="sagemaker", ResourceId=resource_id
+        )
         log.debug(f"ScalingPolicies for {resource_id} description: {response}")
         if response["ScalingPolicies"]:
             assert len(response["ScalingPolicies"]) == 1
             policy = response["ScalingPolicies"][0]
             assert policy["ResourceId"] == resource_id
             return ScalingPolicy(
-                scaling_metric = policy["TargetTrackingScalingPolicyConfiguration"]["PredefinedMetricSpecification"]["PredefinedMetricType"],
-                scaling_target = policy["TargetTrackingScalingPolicyConfiguration"]["TargetValue"],
+                scaling_metric=policy["TargetTrackingScalingPolicyConfiguration"][
+                    "PredefinedMetricSpecification"
+                ]["PredefinedMetricType"],
+                scaling_target=policy["TargetTrackingScalingPolicyConfiguration"][
+                    "TargetValue"
+                ],
             )
         return None
 
@@ -467,13 +473,21 @@ class SageMakerEnvironmentManager(EnvironmentManager):
                 endpoint_name=endpoint_name, endpoint_status="NotFound",
             )
         endpoint_config_name = endpoint.endpoint_config_name
+        if not endpoint_config_name:
+            raise RuntimeError(
+                f"ERROR: Endpoint {endpoint_name} has endpoint_config_name={endpoint_config_name}"
+            )
+        if not endpoint.variant_name:
+            raise RuntimeError(
+                f"ERROR: Endpoint {endpoint_name} has variant_name={endpoint.variant_name}"
+            )
         resource_id = self._resource_id(endpoint_name, endpoint.variant_name)
 
         # Check EndpointConfig
         endpoint_config = self.get_endpoint_config(endpoint_config_name)
         if endpoint_config is None:
             raise RuntimeError(
-                f"Endpoint {endpoint_name} is pointing to EndpointConfig {endpoint_config_name}, but the config cannot be found."
+                f"ERROR: Endpoint {endpoint_name} is pointing to EndpointConfig {endpoint_config_name}, but the config cannot be found."
             )
 
         # Check auto scale settings. Default is off.
@@ -515,7 +529,9 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         )
 
     def delete_auto_scaling(self, endpoint_name: str) -> None:
-        log.debug(f"About to delete auto scaling settings for Endpoint {endpoint_name}...")
+        log.debug(
+            f"About to delete auto scaling settings for Endpoint {endpoint_name}..."
+        )
         autoscaling = self._autoscaling_client()
 
         # Check Endpoint
@@ -523,6 +539,10 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         if endpoint.endpoint_status == "NotFound":
             log.debug(f"Endpoint {endpoint_name} not found, so nothing to remove")
             return
+        if not endpoint.variant_name:
+            raise RuntimeError(
+                f"ERROR: Endpoint {endpoint_name} has variant_name={endpoint.variant_name}"
+            )
         resource_id = self._resource_id(endpoint_name, endpoint.variant_name)
 
         # Check ScalableTargets
@@ -617,7 +637,7 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         endpoint_config = self.get_endpoint_config(endpoint_config_name)
         if endpoint_config is None:
             raise RuntimeError(
-                f"Endpoint {endpoint_name} cannot be created if EndpointConfig {endpoint_config_name} is not found."
+                f"ERROR: Endpoint {endpoint_name} cannot be created if EndpointConfig {endpoint_config_name} is not found."
             )
 
         client = self._sagemaker_client()
@@ -633,8 +653,10 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         scaling_min_instance_count: int,
         scaling_max_instance_count: int,
         scaling_target: int,
-    ):
-        log.debug(f"About to create auto scaling settings for Endpoint {endpoint_name}...")
+    ) -> None:
+        log.debug(
+            f"About to create auto scaling settings for Endpoint {endpoint_name}..."
+        )
         autoscaling = self._autoscaling_client()
 
         # Check Endpoint
@@ -642,6 +664,10 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         if endpoint.endpoint_status == "NotFound":
             raise RuntimeError(
                 f"ERROR: Could not create auto scaling because Endpoint {endpoint_name} not found."
+            )
+        if not endpoint.variant_name:
+            raise RuntimeError(
+                f"ERROR: Endpoint {endpoint_name} has variant_name={endpoint.variant_name}"
             )
         resource_id = self._resource_id(endpoint_name, endpoint.variant_name)
 
@@ -656,7 +682,7 @@ class SageMakerEnvironmentManager(EnvironmentManager):
             ResourceId=resource_id,
             ScalableDimension="sagemaker:variant:DesiredInstanceCount",
             MinCapacity=scaling_min_instance_count,
-            MaxCapacity=scaling_max_instance_count
+            MaxCapacity=scaling_max_instance_count,
         )
         log.debug(f"Created scalable target for resource {resource_id}: {response}")
 
@@ -676,8 +702,8 @@ class SageMakerEnvironmentManager(EnvironmentManager):
                 "TargetValue": scaling_target,
                 "PredefinedMetricSpecification": {
                     "PredefinedMetricType": "SageMakerVariantInvocationsPerInstance",
-                }
-            }
+                },
+            },
         )
         log.debug(f"Created scaling policy for resource {resource_id}: {response}")
 
@@ -757,8 +783,12 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         scaling_target = None
         if config.parameters[Parameter.scaling_enabled] == "True":
             scaling_enabled = True
-            scaling_min_instance_count = int(config.parameters[Parameter.scaling_min_instance_count])
-            scaling_max_instance_count = int(config.parameters[Parameter.scaling_max_instance_count])
+            scaling_min_instance_count = int(
+                config.parameters[Parameter.scaling_min_instance_count]
+            )
+            scaling_max_instance_count = int(
+                config.parameters[Parameter.scaling_max_instance_count]
+            )
             scaling_metric = config.parameters[Parameter.scaling_metric]
             scaling_target = int(config.parameters[Parameter.scaling_target])
 
@@ -796,11 +826,23 @@ class SageMakerEnvironmentManager(EnvironmentManager):
             endpoint_name=endpoint_name, endpoint_config_name=endpoint_config_name
         )
         if scaling_enabled:
+            if not scaling_min_instance_count:
+                raise RuntimeError(
+                    f"ERROR: scaling_enabled so scaling_min_instance_count={scaling_min_instance_count} must be greater than 0."
+                )
+            if not scaling_max_instance_count:
+                raise RuntimeError(
+                    f"ERROR: scaling_enabled so scaling_max_instance_count={scaling_max_instance_count} must be greater than 0."
+                )
+            if not scaling_target:
+                raise RuntimeError(
+                    f"ERROR: scaling_enabled so scaling_target={scaling_target} must be greater than 0."
+                )
             self.create_auto_scaling(
                 endpoint_name=endpoint_name,
                 scaling_min_instance_count=scaling_min_instance_count,
                 scaling_max_instance_count=scaling_max_instance_count,
-                scaling_target=scaling_target
+                scaling_target=scaling_target,
             )
         actual = self.get_status(endpoint_name)
         if actual != expected:
@@ -878,7 +920,9 @@ if __name__ == "__main__":
     config.parameters[Parameter.scaling_enabled] = "True"
     config.parameters[Parameter.scaling_min_instance_count] = "1"
     config.parameters[Parameter.scaling_max_instance_count] = "2"
-    config.parameters[Parameter.scaling_metric] = "SageMakerVariantInvocationsPerInstance"
+    config.parameters[
+        Parameter.scaling_metric
+    ] = "SageMakerVariantInvocationsPerInstance"
     config.parameters[Parameter.scaling_target] = "100"
     manager.setup(config)
     status = manager.get_status(endpoint_name)
