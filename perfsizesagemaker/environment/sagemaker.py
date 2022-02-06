@@ -781,7 +781,10 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         scaling_max_instance_count = None
         scaling_metric = None
         scaling_target = None
-        if config.parameters[Parameter.scaling_enabled] == "True":
+        if (
+            Parameter.scaling_enabled in config.parameters
+            and config.parameters[Parameter.scaling_enabled] == "True"
+        ):
             scaling_enabled = True
             scaling_min_instance_count = int(
                 config.parameters[Parameter.scaling_min_instance_count]
