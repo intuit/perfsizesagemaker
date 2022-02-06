@@ -24,6 +24,9 @@ class FirstSuccessStepManager(StepManager):
             Parameter.endpoint_config_name
         ][0]
 
+        assert len(plan.parameter_lists[Parameter.variant_name]) == 1
+        self.variant_name = plan.parameter_lists[Parameter.variant_name][0]
+
         assert len(plan.parameter_lists[Parameter.model_name]) == 1
         self.model_name = plan.parameter_lists[Parameter.model_name][0]
 
@@ -99,6 +102,7 @@ class FirstSuccessStepManager(StepManager):
             self.region,
             self.endpoint_name,
             self.endpoint_config_name,
+            self.variant_name,
             self.model_name,
             self.instance_type_list[self.instance_type_index],
             self.initial_instance_count_list[self.initial_instance_count_index],

@@ -76,6 +76,11 @@ class Main:
             required=True,
         )
         parser.add_argument(
+            "--variant_name",
+            help="name of SageMaker Endpoint Variant",
+            default="variant-name-1",
+        )
+        parser.add_argument(
             "--model_name", help="name of SageMaker Model", required=True
         )
         parser.add_argument(
@@ -152,6 +157,7 @@ class Main:
         self.region = args.region
         self.endpoint_name = args.endpoint_name
         self.endpoint_config_name = args.endpoint_config_name
+        self.variant_name = args.variant_name
         self.model_name = args.model_name
         self.scenario_requests = args.scenario_requests
         try:
@@ -295,6 +301,7 @@ class Main:
                 Parameter.region: [self.region],
                 Parameter.endpoint_name: [self.endpoint_name],
                 Parameter.endpoint_config_name: [self.endpoint_config_name],
+                Parameter.variant_name: [self.variant_name],
                 Parameter.model_name: [self.model_name],
                 Parameter.instance_type: self.type_walk,
                 Parameter.initial_instance_count: list(map(str, self.count_walk)),
@@ -371,6 +378,7 @@ class Main:
                 Parameter.region: [self.region],
                 Parameter.endpoint_name: [self.endpoint_name],
                 Parameter.endpoint_config_name: [self.endpoint_config_name],
+                Parameter.variant_name: [self.variant_name],
                 Parameter.model_name: [self.model_name],
                 Parameter.instance_type: [instance_type],
                 Parameter.initial_instance_count: list(
@@ -474,6 +482,7 @@ class Main:
         inputs["region"] = f"{self.region}"
         inputs["endpoint_name"] = f"{self.endpoint_name}"
         inputs["endpoint_config_name"] = f"{self.endpoint_config_name}"
+        inputs["variant_name"] = f"{self.variant_name}"
         inputs["model_name"] = f"{self.model_name}"
         inputs["scenario_requests"] = f"{self.scenario_requests}"
         inputs["peak_tps"] = f"{self.peak_tps}"
