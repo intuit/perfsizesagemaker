@@ -16,7 +16,7 @@ jinja2 = "^3.0.1"
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.1"
 pytest-cov = "^2.10.1"
-black = "^19.10b0"
+black = "^22.1.0"
 mypy = "^0.812"
 
 [build-system]

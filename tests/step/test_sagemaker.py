@@ -23,6 +23,7 @@ def sample_plan() -> Plan:
             Parameter.region: ["us-west-2"],
             Parameter.endpoint_name: ["LEARNING-model-simulator-1"],
             Parameter.endpoint_config_name: ["LEARNING-model-simulator-1-0"],
+            Parameter.variant_name: ["variant-name-1"],
             Parameter.model_name: ["model-simulator"],
             Parameter.instance_type: [
                 "ml.m5.large",
@@ -89,6 +90,7 @@ class TestFirstSuccessStepManager:
             "region": "us-west-2",
             "endpoint_name": "LEARNING-model-simulator-1",
             "endpoint_config_name": "LEARNING-model-simulator-1-0",
+            "variant_name": "variant-name-1",
             "model_name": "model-simulator",
             "instance_type": "ml.m5.large",
             "initial_instance_count": "1",
