@@ -62,10 +62,14 @@ class Main:
             required=False,
         )
         parser.add_argument(
-            "--host", help="SageMaker runtime host", required=True,
+            "--host",
+            help="SageMaker runtime host",
+            required=True,
         )
         parser.add_argument(
-            "--region", help="region name for boto3 and cost lookup", required=True,
+            "--region",
+            help="region name for boto3 and cost lookup",
+            required=True,
         )
         parser.add_argument(
             "--endpoint_name", help="name of SageMaker Endpoint", required=True
@@ -96,7 +100,9 @@ class Main:
             "--percent_fail", help="allowed failure percentage", required=True
         )
         parser.add_argument(
-            "--type_walk", help="comma separated instance types to test", required=True,
+            "--type_walk",
+            help="comma separated instance types to test",
+            required=True,
         )
         parser.add_argument(
             "--count_walk", help="comma separated counts to test", required=True

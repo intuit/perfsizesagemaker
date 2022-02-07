@@ -8,7 +8,9 @@ log = logging.getLogger(__name__)
 
 class CredentialsManager:
     def __init__(
-        self, iam_role_arn: Optional[str] = None, region: Optional[str] = None,
+        self,
+        iam_role_arn: Optional[str] = None,
+        region: Optional[str] = None,
     ):
         self.iam_role_arn = iam_role_arn
         self.region = region
@@ -17,7 +19,8 @@ class CredentialsManager:
         if self.iam_role_arn:
             client = boto3.client(service_name="sts", region_name=self.region)
             response = client.assume_role(
-                RoleArn=self.iam_role_arn, RoleSessionName="test",
+                RoleArn=self.iam_role_arn,
+                RoleSessionName="test",
             )
             credentials = response["Credentials"]
             return (

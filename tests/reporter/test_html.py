@@ -86,7 +86,11 @@ class TestHTMLReporter:
                 Parameter.initial_instance_count: ["1"],
                 Parameter.ramp_start_tps: ["0"],
                 Parameter.ramp_minutes: ["0"],
-                Parameter.steady_state_tps: ["1", "10", "100",],
+                Parameter.steady_state_tps: [
+                    "1",
+                    "10",
+                    "100",
+                ],
                 Parameter.steady_state_minutes: ["1"],
             },
             requirements=requirements,

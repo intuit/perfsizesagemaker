@@ -68,7 +68,9 @@ class EndpointConfig:
 
 class ScalableTarget:
     def __init__(
-        self, scaling_min_instance_count: int, scaling_max_instance_count: int,
+        self,
+        scaling_min_instance_count: int,
+        scaling_max_instance_count: int,
     ):
         self.scaling_min_instance_count = scaling_min_instance_count
         self.scaling_max_instance_count = scaling_max_instance_count
@@ -76,7 +78,9 @@ class ScalableTarget:
 
 class ScalingPolicy:
     def __init__(
-        self, scaling_metric: str, scaling_target: int,
+        self,
+        scaling_metric: str,
+        scaling_target: int,
     ):
         self.scaling_metric = scaling_metric
         self.scaling_target = scaling_target
@@ -337,7 +341,9 @@ class CombinedStatus:
 
 class SageMakerEnvironmentManager(EnvironmentManager):
     def __init__(
-        self, iam_role_arn: Optional[str] = None, region: Optional[str] = None,
+        self,
+        iam_role_arn: Optional[str] = None,
+        region: Optional[str] = None,
     ):
         self.credentials_manager = CredentialsManager(iam_role_arn, region)
         self.region = region
@@ -397,7 +403,8 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         except ClientError as err:
             if err.args and "Could not find endpoint" in err.args[0]:
                 return Endpoint(
-                    endpoint_name=endpoint_name, endpoint_status="NotFound",
+                    endpoint_name=endpoint_name,
+                    endpoint_status="NotFound",
                 )
             else:
                 raise (err)
@@ -470,7 +477,8 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         endpoint = self.get_endpoint(endpoint_name)
         if endpoint.endpoint_status == "NotFound":
             return CombinedStatus(
-                endpoint_name=endpoint_name, endpoint_status="NotFound",
+                endpoint_name=endpoint_name,
+                endpoint_status="NotFound",
             )
         endpoint_config_name = endpoint.endpoint_config_name
         if not endpoint_config_name:
@@ -642,7 +650,8 @@ class SageMakerEnvironmentManager(EnvironmentManager):
 
         client = self._sagemaker_client()
         response = client.create_endpoint(
-            EndpointName=endpoint_name, EndpointConfigName=endpoint_config_name,
+            EndpointName=endpoint_name,
+            EndpointConfigName=endpoint_config_name,
         )
         log.debug(f"Endpoint {endpoint_name} creation response {response}")
         self.wait_endpoint_in_service(endpoint_name)
