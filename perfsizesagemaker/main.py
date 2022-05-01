@@ -19,7 +19,10 @@ from perfsizesagemaker.cost import CostEstimator
 from perfsizesagemaker.environment.sagemaker import SageMakerEnvironmentManager
 from perfsizesagemaker.load.sagemaker import SageMakerLoadManager
 from perfsizesagemaker.reporter.html import HTMLReporter
-from perfsizesagemaker.step.sagemaker import FirstSuccessStepManager
+from perfsizesagemaker.step.sagemaker import (
+    FirstSuccessStepManager,
+    AutoScaleMinFinderStepManager,
+)
 from perfsizesagemaker.constants import Parameter, SageMaker
 from pprint import pformat
 import sys
@@ -466,18 +469,91 @@ class Main:
     ) -> Optional[Dict[str, str]]:
         # Phase 3: Find min instance count that can still support given ramp time.
         # Third set limits instance type and max count to values found above.
-        # The goal is to find the number of instances needed to support given
+        # The goal is to find min number of instances needed to support given
         # ramp from starting TPS to peak TPS over ramp minutes.
 
-        # TODO: Implement...
-        self.min_count_plan = None
-        log.info(f"Testing min instance count with plan: {self.min_count_plan}")
-        min_count_workflow = None
-        min_count_recommendation = None
+        # Check if auto scale is even needed. TODO: make threshold configurable
+        if max_instance_count == 1:
+            log.info(f"No need for auto scale, 1 instance enough for peak TPS.")
+            return None
 
+        self.min_count_plan = Plan(
+            parameter_lists={
+                Parameter.host: [self.host],
+                Parameter.region: [self.region],
+                Parameter.endpoint_name: [self.endpoint_name],
+                Parameter.endpoint_config_name: [self.endpoint_config_name],
+                Parameter.variant_name: [self.variant_name],
+                Parameter.model_name: [self.model_name],
+                Parameter.instance_type: [instance_type],
+                # omitting Parameter.initial_instance_count
+                Parameter.scaling_enabled: ["True"],
+                Parameter.scaling_min_instance_count: list(
+                    map(
+                        str,
+                        range(1, max_instance_count + 1),
+                    )
+                ),
+                Parameter.scaling_max_instance_count: [str(max_instance_count)],
+                Parameter.scaling_metric: ["SageMakerVariantInvocationsPerInstance"],
+                Parameter.scaling_target: [str(invocations_target)],
+                Parameter.ramp_start_tps: [str(self.endurance_ramp_start_tps)],
+                Parameter.ramp_minutes: [str(self.endurance_ramp_minutes)],
+                Parameter.steady_state_tps: [str(self.peak_tps)],
+                Parameter.steady_state_minutes: [
+                    str(self.endurance_steady_state_minutes)
+                ],
+            },
+            requirements=self.requirements,
+        )
+        log.info(f"Testing auto scale with plan: {self.min_count_plan}")
+
+        min_count_workflow = Workflow(
+            plan=self.min_count_plan,
+            step_manager=AutoScaleMinFinderStepManager(self.min_count_plan),
+            environment_manager=SageMakerEnvironmentManager(
+                self.iam_role_arn, self.region
+            ),
+            load_manager=SageMakerLoadManager(
+                scenario_requests=self.scenario_requests,
+                gatling_jar_path=self.jar_file,
+                gatling_scenario="GenericSageMakerScenario",
+                gatling_results_path=self.job_id_dir,
+                iam_role_arn=self.iam_role_arn,
+                region=self.region,
+            ),
+            result_managers=[GatlingResultManager(results_path=self.job_id_dir)],
+            reporters=[MockReporter()],
+            teardown_between_steps=True,
+            teardown_at_end=True,
+        )
+        min_count_recommendation = min_count_workflow.run()
+        log.debug(
+            f"Test for auto scale got recommendation: {pformat(min_count_recommendation)}"
+        )
+        if not min_count_recommendation:
+            log.error(
+                f"Test failed to find a working auto scale config for given requirements."
+            )
+            return None
+
+        min_instance_count = int(
+            min_count_recommendation[Parameter.scaling_min_instance_count]
+        )
+        scaling_metric = min_count_recommendation[Parameter.scaling_metric]
+        scaling_target = min_count_recommendation[Parameter.scaling_target]
+        ramp_start_tps = min_count_recommendation[Parameter.ramp_start_tps]
+        ramp_minutes = min_count_recommendation[Parameter.ramp_minutes]
+        steady_state_tps = min_count_recommendation[Parameter.steady_state_tps]
+        steady_state_minutes = min_count_recommendation[Parameter.steady_state_minutes]
         recommend_min: Dict[str, str] = {}
-        recommend_min["min_instance_count"] = "-"  # TODO: implement
-        recommend_min["min_cost"] = "-"  # TODO: implement
+        recommend_min["min_instance_count"] = str(min_instance_count)
+        recommend_min["min_cost"] = self.cost.explain(instance_type, min_instance_count)
+        recommend_min["explanation"] = (
+            f"Traffic was {ramp_start_tps} TPS ramped over {ramp_minutes} minutes to {steady_state_tps} TPS, and then run for {steady_state_minutes} minutes.\n"
+            f"Last green run was auto scale configuration with minimum {min_instance_count}, maximum {max_instance_count} instances of type {instance_type},\n"
+            f"with scaling metric {scaling_metric} at {scaling_target} as calculated earlier.\n"
+        )
         log.info(f"recommend_min: {pformat(recommend_min)}")
         return recommend_min
 
