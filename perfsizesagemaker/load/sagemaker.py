@@ -45,9 +45,18 @@ class SageMakerLoadManager(LoadManager):
         gatling_run_tag = (
             f"{int(start.timestamp())}-"
             f"{config.parameters[Parameter.instance_type]}-"
-            f"{config.parameters[Parameter.initial_instance_count]}-"
-            f"{scenario_steady_state_tps}TPS"
         )
+        if (
+            Parameter.scaling_enabled in config.parameters
+            and config.parameters[Parameter.scaling_enabled] == "True"
+        ):
+            gatling_run_tag += (
+                f"min{config.parameters[Parameter.scaling_min_instance_count]}-"
+                f"max{config.parameters[Parameter.scaling_max_instance_count]}-"
+            )
+        else:
+            gatling_run_tag += f"{config.parameters[Parameter.initial_instance_count]}-"
+        gatling_run_tag += f"{scenario_steady_state_tps}TPS"
         (
             aws_access_key_id,
             aws_secret_access_key,

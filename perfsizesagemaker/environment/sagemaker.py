@@ -782,9 +782,7 @@ class SageMakerEnvironmentManager(EnvironmentManager):
         variant_name = config.parameters[Parameter.variant_name]
         model_name = config.parameters[Parameter.model_name]
         instance_type = config.parameters[Parameter.instance_type]
-        initial_instance_count = int(
-            config.parameters[Parameter.initial_instance_count]
-        )
+
         scaling_enabled = False
         scaling_min_instance_count = None
         scaling_max_instance_count = None
@@ -803,6 +801,20 @@ class SageMakerEnvironmentManager(EnvironmentManager):
             )
             scaling_metric = config.parameters[Parameter.scaling_metric]
             scaling_target = int(config.parameters[Parameter.scaling_target])
+
+        # To help reduce combinations, initial_instance_count may be omitted if
+        # scaling_enabled and will default to match scaling_min_instance_count.
+        # But can still specify initial count explicitly if needed.
+        if (
+            scaling_enabled
+            and Parameter.initial_instance_count not in config.parameters
+        ):
+            assert isinstance(scaling_min_instance_count, int)  # help mypy
+            initial_instance_count = scaling_min_instance_count
+        else:
+            initial_instance_count = int(
+                config.parameters[Parameter.initial_instance_count]
+            )
 
         # Check if current state already set correctly
         expected = CombinedStatus(
@@ -936,6 +948,14 @@ if __name__ == "__main__":
         Parameter.scaling_metric
     ] = "SageMakerVariantInvocationsPerInstance"
     config.parameters[Parameter.scaling_target] = "100"
+    manager.setup(config)
+    status = manager.get_status(endpoint_name)
+    print(status)
+
+    log.info("Set up new config auto scaling, no explicit initial count...")
+    del config.parameters[Parameter.initial_instance_count]
+    config.parameters[Parameter.scaling_min_instance_count] = "2"
+    config.parameters[Parameter.scaling_max_instance_count] = "4"
     manager.setup(config)
     status = manager.get_status(endpoint_name)
     print(status)
