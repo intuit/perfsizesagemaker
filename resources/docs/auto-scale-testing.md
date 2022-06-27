@@ -5,7 +5,7 @@
 The perfsizesagemaker tool provides an automated way to determine deployment settings that are
 cost effective and meet given performance requirements.
 
-Currently, the tool finds:
+The tool finds these settings:
 
 - `Instance Type`
 
@@ -13,19 +13,25 @@ Currently, the tool finds:
 
 - `Scaling Metric` (Report shows it as `invocations_target`)
 
-But the `Minimum Instance Count` is not yet covered.
+- `Minimum Instance Count`
 
-With the current perf test report, you have enough information to deploy with a Fixed Scale
-configuration.  But to deploy with an Auto Scale configuration, you also need to determine the
-minimum number.
+If all tests pass, you can use the above settings to deploy your model with either a Fixed Scale
+or Auto Scale configuration.
 
-There are future plans to automate finding that as well, but for now, please see steps below.
+Depending on your model and given requirements, there may be cases where the tool is unable to find
+some settings. For example, if type tests and maximum instance count tests pass, you have enough
+information to deploy a Fixed Scale configuration. But if there is no solution found for the
+minimum instance count tests, then auto scaling does not work with your current requirements.
+
+Below are more details about the testing process.
+
 
 ## Requirements
 
-The minimum instance count specifies how low the endpoint will scale in times of low traffic.
+The minimum instance count specifies how low the endpoint will scale, in times of low traffic.
 
-These requirements from the automated test report can be reused here:
+The tool uses the following requirements when testing for instance type and maximum instance count,
+and they will also apply when testing for minimum instance count:
 
 - Peak Traffic (TPS)
 
@@ -56,39 +62,56 @@ consider historical metrics and check with clients that will be calling your mod
 
 ## Process
 
-Follow these steps to determine if auto scaling is possible, and if so, what setting to use for
-minimum instance count.
+The testing tool is now able to test for auto scale settings automatically.
 
-1. Try a minimum count = 1 instance as the lowest starting point, or if needing to cover multiple
-   availability zones, can start with minimum count = 2.
+However, you can still review the steps here for reference, or in case you want to run any
+additional tests.
 
-2. Deploy your model with auto scale settings. Use the `Instance Type`, `Maximum Instance Count`,
-   and `Scaling Metric` from the perf test report. But set `Minimum Instance Count` to the current
-   number you are testing.
+1. For finding minimum instance count, start by setting a lower bound at 0 and an upper bound at
+   `Maximum Instance Count`.
 
-3. After endpoint is finished updating, use 
+2. Set the next number to test as `(upper + lower) / 2`, rounded down to an integer. If this number
+   was already tested, then stop testing.
+
+3. Deploy your model with the `Instance Type` from the perf test report and set the number of
+   instances to the minimum count being tested.
+
+4. Apply auto scale settings, with `Minimum Instance Count` as the current number being tested,
+   and get `Maximum Instance Count` and `Scaling Metric` values from the perf test report.
+
+5. Wait for endpoint to complete updating. Use
    [sagemaker-gatling](https://github.com/intuit/sagemaker-gatling)
    to run a load that simulates a ramp from 0 TPS to peak TPS over your given ramp time, and
    continues peak TPS for a steady state duration (for example, 30 minutes).
 
-4. See Gatling report results.
+   IMPORTANT: Your test may be invalid if you skip the redeployment steps above. For example, if you
+   just finished running a previous test that sent enough traffic, your endpoint may still be scaled
+   out. So running another test immediately on the same endpoint would not be testing ramp from the
+   expected minimum count. You would need to wait until the endpoint scaled back down to the minimum
+   count, or do the above steps to redeploy to a known starting state.
 
-5. Check for success.
+6. See Gatling report results.
 
-If error rate and TP99 response time look good, then you have found a `Minimum Instance Count`
-setting that supports your requirements (there may be lower numbers you can further test if you
-skipped over some).
+7. Check for success.
 
-Else, the current setting did not work, so bump up minimum count, and repeat with a new deployment
-in Step 2.
+   If error rate and TP99 response time look good, then you have found a `Minimum Instance Count`
+   setting that supports your requirements. Make a note of current settings. But keep testing to
+   see if there is an even lower minimum count possible. Set upper bound to current number and
+   repeat from Step 2.
 
-Once minimum count gets bumped up all the way to maximum count, then auto scaling is not possible
-with your current requirements.
+   Else, the current setting did not work, so set lower bound to current number and repeat from
+   Step 2.
+
+Once Step 2 detects the next number to test was already tested, go with the most recent successful
+`Minimum Instance Count` setting found. Or, if none found, then auto scaling does not work with
+your current requirements.
+
 
 ## Tips
 
-- Remember you can start with the automated performance test to get most of the settings needed.
-  The manual retry steps on this page are only for finding the minimum instance count.
+- The testing tool is now able to test for auto scale settings automatically, assuming the previous
+  test phases for instance type and maximum instance count passed, and a ramp time was given as
+  greater than zero.
 
 - There are many models that can support their peak TPS with just 1 or 2 instances of ml.m5.large.
   In this case, you can just deploy with a Fixed Scale configuration and there is no need for auto
@@ -107,3 +130,7 @@ with your current requirements.
 - If you have questions or feedback, please start a new thread on the
   [perfsizesagemaker Issues](https://github.com/intuit/perfsizesagemaker/issues)
   page at GitHub.
+
+## Sample Reports
+
+(TODO)

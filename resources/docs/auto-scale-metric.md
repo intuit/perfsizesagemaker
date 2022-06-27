@@ -50,9 +50,10 @@ It determines the maximum number of instances needed to support your stated peak
 The report shows the `SageMakerVariantInvocationsPerInstance` as `invocations_target`.
 
 Optionally, if you want to find an auto scale setup, you will need to define what ramp time (in
-minutes) is allowed for traffic to go from 0 TPS to your peak TPS. This process will help you
-determine a suitable minimum number instances needed to support your ramp time. You can follow the
+minutes) is allowed for traffic to go from 0 TPS to your peak TPS. The tool will then test for a
+suitable minimum number of instances needed to support your ramp time.
+
+For more background on the testing logic, or to run additional tests manually, you can follow the
 steps on this page:
 
 - [How to test for auto scaling settings](auto-scale-testing.md)
-
