@@ -589,14 +589,16 @@ class Main:
 
         self.recommend_type = self.test_type()
 
-        if self.recommend_type:
+        # Only continue with max count test if type test successful and endurance enabled
+        if self.recommend_type and self.endurance_steady_state_minutes > 0:
             instance_type = self.recommend_type[Parameter.instance_type]
             instance_count_needed = int(self.recommend_type["instance_count_needed"])
             self.recommend_max = self.test_max(
                 instance_type=instance_type, instance_count_needed=instance_count_needed
             )
 
-            if self.recommend_max:
+            # Only continue with min count test if max count test successful and ramp exists
+            if self.recommend_max and self.endurance_ramp_minutes > 0:
                 max_instance_count = int(self.recommend_max["max_instance_count"])
                 invocations_target = int(self.recommend_max["invocations_target"])
                 self.recommend_min = self.test_min(
