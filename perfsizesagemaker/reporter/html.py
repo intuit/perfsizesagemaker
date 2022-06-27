@@ -1,18 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
-import itertools
-import json
 import logging.config
-import math
-from os import path
 import pandas as pd
-from perfsize.perfsize import Condition, Config, Plan, Result, Run, lt, gte
-from perfsize.result.gatling import Metric
-from perfsizesagemaker.constants import Parameter, SageMaker
-from perfsizesagemaker.cost import CostEstimator
-from pprint import pformat, pprint
-from typing import Dict, List, Optional, Tuple, Union
-import yaml
+from perfsize.perfsize import Plan
+from perfsizesagemaker.constants import Parameter
+from typing import Dict, List, Optional, Union
 from yattag import Doc, indent  # type: ignore[attr-defined]
 
 log = logging.getLogger(__name__)
@@ -133,6 +125,22 @@ class HTMLReporter:
             doc.asis(renderHtmlString)
         return format(doc.getvalue())
 
+    def format_plan_row_name_fixed_scale(self, typ: str, count: str) -> str:
+        return f"{typ}: {count} instance"
+
+    def format_plan_col_name_fixed_scale(self, steady_state_tps: str) -> str:
+        return f"{steady_state_tps} TPS"
+
+    def format_plan_row_name_auto_scale(
+        self, typ: str, min_count: str, max_count: str
+    ) -> str:
+        return f"{typ}: min {min_count}, max {max_count}"
+
+    def format_plan_col_name_auto_scale(
+        self, ramp_start_tps: str, steady_state_tps: str, ramp_minutes: str
+    ) -> str:
+        return f"Ramp {ramp_start_tps} TPS to {steady_state_tps} TPS over {ramp_minutes} minutes"
+
     def render_plan(self, plan: Optional[Plan]) -> str:
         doc, tag, text = Doc().tagtext()
         if not plan:
@@ -144,39 +152,116 @@ class HTMLReporter:
                 text(f"ERROR: Test plan had no history")
             return format(doc.getvalue())
         type_walk = plan.parameter_lists[Parameter.instance_type]
-        count_walk = plan.parameter_lists[Parameter.initial_instance_count]
-        tps_walk = plan.parameter_lists[Parameter.steady_state_tps]
         if not type_walk:
             with tag("p"):
                 text(f"ERROR: Instance type list was empty")
             return format(doc.getvalue())
-        if not count_walk:
-            with tag("p"):
-                text(f"ERROR: Instance count list was empty")
-            return format(doc.getvalue())
+        tps_walk = plan.parameter_lists[Parameter.steady_state_tps]
         if not tps_walk:
             with tag("p"):
                 text(f"ERROR: TPS list was empty")
             return format(doc.getvalue())
+
         results: Dict[str, Dict[str, Optional[bool]]] = {}
-        # Initialize all results to None. Rows are type-count, columns are TPS.
-        for typ in type_walk:
-            for count in count_walk:
-                row_name = f"{typ}-{count}"
-                results[row_name] = {}
-                for tps in tps_walk:
-                    results[row_name][tps] = None
-        # Update results based on history.
-        for config in plan.history:
-            row_name = f"{config.parameters[Parameter.instance_type]}-{config.parameters[Parameter.initial_instance_count]}"
-            col_name = config.parameters[Parameter.steady_state_tps]
-            if not config.runs:
+
+        # Configure data frame rows and columns based on fixed or auto scale.
+        if not (
+            Parameter.scaling_enabled in plan.parameter_lists
+            and plan.parameter_lists[Parameter.scaling_enabled] == ["True"]
+        ):
+            count_walk = plan.parameter_lists[Parameter.initial_instance_count]
+            if not count_walk:
                 with tag("p"):
-                    text(f"ERROR: Config {config} was part of history but had no run")
+                    text(f"ERROR: Instance count list was empty")
                 return format(doc.getvalue())
-            # TODO: How to render a config with multiple runs? For now, just use last one.
-            results[row_name][col_name] = config.runs[-1].status
-        dataFrame = pd.DataFrame.from_dict(results, orient="index", columns=tps_walk)
+            # Initialize all results to None.
+            for typ in type_walk:
+                for count in count_walk:
+                    row_name = self.format_plan_row_name_fixed_scale(typ, count)
+                    results[row_name] = {}
+                    for tps in tps_walk:
+                        col_name = self.format_plan_col_name_fixed_scale(tps)
+                        results[row_name][col_name] = None
+            # Update results based on history.
+            for config in plan.history:
+                row_name = self.format_plan_row_name_fixed_scale(
+                    config.parameters[Parameter.instance_type],
+                    config.parameters[Parameter.initial_instance_count],
+                )
+                col_name = self.format_plan_col_name_fixed_scale(
+                    config.parameters[Parameter.steady_state_tps],
+                )
+                if not config.runs:
+                    with tag("p"):
+                        text(
+                            f"ERROR: Config {config} was part of history but had no run"
+                        )
+                    return format(doc.getvalue())
+                # TODO: How to render a config with multiple runs? For now, just use last one.
+                results[row_name][col_name] = config.runs[-1].status
+        else:
+            min_count_walk = plan.parameter_lists[Parameter.scaling_min_instance_count]
+            if not min_count_walk:
+                with tag("p"):
+                    text(f"ERROR: Min instance count list was empty")
+                return format(doc.getvalue())
+            max_count_walk = plan.parameter_lists[Parameter.scaling_max_instance_count]
+            if not max_count_walk:
+                with tag("p"):
+                    text(f"ERROR: Max instance count list was empty")
+                return format(doc.getvalue())
+            ramp_start_tps_walk = plan.parameter_lists[Parameter.ramp_start_tps]
+            if not ramp_start_tps_walk:
+                with tag("p"):
+                    text(f"ERROR: Ramp start TPS list was empty")
+                return format(doc.getvalue())
+            ramp_minutes_walk = plan.parameter_lists[Parameter.ramp_minutes]
+            if not ramp_minutes_walk:
+                with tag("p"):
+                    text(f"ERROR: Ramp minutes list was empty")
+                return format(doc.getvalue())
+            # Identify column names for data frame.
+            col_names: List[str] = []
+            for ramp_start_tps in ramp_start_tps_walk:
+                for ramp_minutes in ramp_minutes_walk:
+                    for steady_state_tps in tps_walk:
+                        col_names.append(
+                            self.format_plan_col_name_auto_scale(
+                                ramp_start_tps, steady_state_tps, ramp_minutes
+                            )
+                        )
+            # Initialize all results to None.
+            for typ in type_walk:
+                for min_count in min_count_walk:
+                    for max_count in max_count_walk:
+                        row_name = self.format_plan_row_name_auto_scale(
+                            typ, min_count, max_count
+                        )
+                        results[row_name] = {}
+                        for col_name in col_names:
+                            results[row_name][col_name] = None
+            # Update results based on history.
+            for config in plan.history:
+                row_name = self.format_plan_row_name_auto_scale(
+                    config.parameters[Parameter.instance_type],
+                    config.parameters[Parameter.scaling_min_instance_count],
+                    config.parameters[Parameter.scaling_max_instance_count],
+                )
+                col_name = self.format_plan_col_name_auto_scale(
+                    config.parameters[Parameter.ramp_start_tps],
+                    config.parameters[Parameter.steady_state_tps],
+                    config.parameters[Parameter.ramp_minutes],
+                )
+                if not config.runs:
+                    with tag("p"):
+                        text(
+                            f"ERROR: Config {config} was part of history but had no run"
+                        )
+                    return format(doc.getvalue())
+                # TODO: How to render a config with multiple runs? For now, just use last one.
+                results[row_name][col_name] = config.runs[-1].status
+
+        dataFrame = pd.DataFrame(results).T
         renderHtmlString = (
             dataFrame.style.applymap(self.status_to_html_color)
             .set_table_attributes(
@@ -247,14 +332,14 @@ class HTMLReporter:
         with tag("h2"):
             text(f"Recommendation")
 
-        if self.recommend_type and self.recommend_min and self.recommend_max:
-            # General success text (either fixed or auto scale)
+        summary: Dict[str, str] = {}
+        if self.recommend_type and self.recommend_max and self.recommend_min:
             with tag("p"):
                 text(
                     f"Success! Based on the provided inputs, here are the "
-                    f"suggested settings for deploying {model}."
+                    f"suggested settings for deploying {model} with either "
+                    f"fixed scale or auto scale."
                 )
-            summary: Dict[str, str] = {}
             summary["instance_type"] = self.recommend_type["instance_type"]
             summary["min_instance_count"] = self.recommend_min["min_instance_count"]
             summary["min_cost"] = self.recommend_min["min_cost"]
@@ -267,6 +352,27 @@ class HTMLReporter:
             with tag("p"):
                 text("For an Auto Scale configuration, use the min_instance_count, ")
                 text("max_instance_count, and invocations_target.")
+
+        elif self.recommend_type and self.recommend_max:
+            with tag("p"):
+                text(
+                    f"Success! Based on the provided inputs, here are the "
+                    f"suggested settings for deploying {model} with fixed "
+                    f"scale. But for auto scale, the tests were either skipped "
+                    f"or failed."
+                )
+            summary["instance_type"] = self.recommend_type["instance_type"]
+            summary["instance_count"] = self.recommend_max["max_instance_count"]
+            summary["cost"] = self.recommend_max["max_cost"]
+            doc.asis(self.render_dict(summary))
+            with tag("p"):
+                text("For a Fixed Scale configuration, use the above configuration.")
+            with tag("p"):
+                text(
+                    "For an Auto Scale configuration, no working setup was "
+                    "found, given the provided inputs. See below for more "
+                    "details and if needed, try again with adjusted inputs."
+                )
 
         elif self.recommend_type:
             with tag("p"):
@@ -452,25 +558,69 @@ class HTMLReporter:
             text("The endpoint needs to scale up from the minimum number to ")
             text("the maximum number within given ramp time.")
 
-        # if self.recommend_min:
-        #     doc.asis(self.render_plan(self.min_count_plan))
+        if not self.min_count_plan:
+            with tag("p"):
+                text("This section was skipped either by configuration, ")
+                text("or due to above errors.")
+        else:
+            with tag("p"):
+                text("Instance Type: Use the instance type found above.")
+            with tag("p"):
+                text("Max Instance Count: Use the max count found above.")
+            with tag("p"):
+                text("Min Instance Count: Test different values to find ")
+                text("lowest count that still supports given ramp.")
+
+            with tag("p"):
+                text(
+                    "Instance Type and Auto Scale (left column) vs. Traffic Pattern (top row):"
+                )
+
+            with tag("p"):
+                doc.asis(self.render_plan(self.min_count_plan))
+
+            # Table with runs and Gatling client metrics
+            with tag("p"):
+                text("Test Configuration (left column) vs. Result Details (top row):")
+
+            with tag("p"):
+                doc.asis(self.render_runs(self.min_count_plan))
+
+            # TODO: Table with SageMaker CloudWatch metrics
+
+            with tag("p"):
+                text("Minimum Count Result:")
+
+            if self.recommend_min:
+                doc.asis(self.render_dict(self.recommend_min))
+                with tag("p"):
+                    text("Results show a working setup to meet the required ")
+                    text("TPS, error rate, response time, and ramp pattern.")
+            else:
+                with tag("p"):
+                    text("ERROR: Endurance tests using given ramp traffic ")
+                    text("pattern failed to meet SLA rules.")
+                with tag("p"):
+                    text("There can be different reasons for failure. ")
+                    text("Sometimes, the cause is an intermittent ")
+                    text("environmental issue that can be resolved with a ")
+                    text("re-run. Other times, the failure may be consistent ")
+                    text("for the given ramp traffic pattern. If ramp duration ")
+                    text("is too short, then auto scaling may not be possible.")
+                with tag("p"):
+                    text("For more debugging details, go to the Build ")
+                    text("Artifacts to see detailed reports for each test step.")
 
         with tag("p"):
-            text("This section is a placeholder until automation is ready.")
-            # doc.asis(self.render_runs(self.min_count_plan))
-
-        if self.recommend_min:
-            doc.asis(self.render_dict(self.recommend_min))
-
-        with tag("p"):
-            text("You can also test the minimum instance count by following: ")
+            text("For more details about the testing process for finding the ")
+            text("minimum instance count or to run more tests manually, see: ")
             with tag(
                 "a",
                 href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-testing.md",
             ):
                 text("How to test for auto scaling settings")
         with tag("p"):
-            text("For more context on the autoscale metric, see ")
+            text("For more context on the auto scale metric, see ")
             with tag(
                 "a",
                 href="https://github.com/intuit/perfsizesagemaker/blob/main/resources/docs/auto-scale-metric.md",
